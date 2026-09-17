@@ -1,0 +1,12 @@
+[general]
+name=Habitat Classifier
+icon=icon.png
+description=AI-assisted habitat classification from Sentinel-2 imagery and terrain data
+version=0.2
+qgisMinimumVersion=3.28
+author=Spyros Matthiopoulos
+email=
+about=Experimental QGIS plugin for habitat segmentation and terrain-informed refinement.
+
+[experimental]
+experimental=True

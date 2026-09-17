@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+
+# QGIS / GDAL temporary files
+*.aux.xml
+*.ovr
+*.qgz~
+*.qgs~
+
+# Raster / remote-sensing data
+*.jp2
+*.tif
+*.tiff
+
+# Generated folders
+outputs/
+output/
+temp/
+tmp/
+data/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
