@@ -3,7 +3,12 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from qgis.PyQt.QtCore import QProcess, QProcessEnvironment, QSettings
+from .external_environment import (
+    clean_external_environment,
+    to_qprocess_environment,
+)
+
+from qgis.PyQt.QtCore import QProcess, QSettings
 from qgis.PyQt.QtWidgets import (
     QButtonGroup,
     QDialog,
@@ -168,9 +173,9 @@ class HabitatSettingsDialog(QDialog):
             QMessageBox.warning(self, "Habitat Classifier", "Choose a valid Python executable first.")
             return
 
-        clean_env = os.environ.copy()
-        clean_env.pop("PYTHONHOME", None)
-        clean_env.pop("PYTHONPATH", None)
+        clean_env = clean_external_environment(
+            python_exe
+        )
 
         code = (
             "import sys, numpy, scipy, rasterio, torch, torchvision, "
@@ -220,9 +225,8 @@ class HabitatSettingsDialog(QDialog):
                 self,
                 "Python Not Found",
                 "A compatible standalone Python installation could not be found.\n\n"
-                "HabitatModelQGIS currently needs Python 3.11, 3.12 or 3.13 "
-                "for reliable TopoToolbox installation. Python 3.14 is not "
-                "Automatic setup requires a standalone Python 3.11 installation.\n\n"
+                "HabitatModelQGIS automatic setup requires a standalone "
+                "Python 3.11 installation.\n\n"
                 "Install Python 3.11 for Windows, reopen QGIS, and try again.\n\n"
                 "The QGIS Python installation will not be modified.",
             )
@@ -312,10 +316,26 @@ class HabitatSettingsDialog(QDialog):
         self._append_log(f"\n[{self.current_step + 1}/{len(self.setup_steps)}] {label}")
 
         self.process = QProcess(self)
-        process_env = QProcessEnvironment.systemEnvironment()
-        process_env.remove("PYTHONHOME")
-        process_env.remove("PYTHONPATH")
-        self.process.setProcessEnvironment(process_env)
+
+        # Run setup commands outside QGIS's Python/DLL environment.
+        # Once the virtual environment exists, put its Python environment
+        # first in PATH for all venv-based installation/verification steps.
+        program_path = Path(command[0])
+        is_venv_python = (
+            program_path.name.lower() == "python.exe"
+            and self.environment_dir in program_path.parents
+        )
+
+        if is_venv_python:
+            clean_env = clean_external_environment(
+                str(self.environment_python)
+            )
+        else:
+            clean_env = clean_external_environment()
+
+        self.process.setProcessEnvironment(
+            to_qprocess_environment(clean_env)
+        )
         self.process.setProcessChannelMode(QProcess.MergedChannels)
         self.process.readyReadStandardOutput.connect(self._read_process_output)
         self.process.finished.connect(self._process_finished)
@@ -344,7 +364,17 @@ class HabitatSettingsDialog(QDialog):
         process.deleteLater()
 
         if exit_status != QProcess.NormalExit or exit_code != 0:
-            self._setup_failed(f"Setup step failed with exit code {exit_code}.")
+            log_text = self.log_box.toPlainText()
+            message = f"Setup step failed with exit code {exit_code}."
+            if "WinError 1114" in log_text or "c10.dll" in log_text:
+                message += (
+                    "\n\nPyTorch could not initialise a Windows DLL. "
+                    "The setup now isolates the ML environment from QGIS DLL paths. "
+                    "If this still occurs after retrying, repair/install the "
+                    "Microsoft Visual C++ 2015-2022 Redistributable (x64) and "
+                    "update the NVIDIA driver, then run automatic setup again."
+                )
+            self._setup_failed(message)
             return
 
         self.current_step += 1
@@ -402,9 +432,7 @@ class HabitatSettingsDialog(QDialog):
         be selected manually, but automatic setup deliberately targets
         Python 3.11 for reproducibility.
         """
-        clean_env = os.environ.copy()
-        clean_env.pop("PYTHONHOME", None)
-        clean_env.pop("PYTHONPATH", None)
+        clean_env = clean_external_environment()
 
         supported_versions = [(3, 11)]
         candidates = []
@@ -540,6 +568,7 @@ class HabitatSettingsDialog(QDialog):
                 capture_output=True,
                 text=True,
                 timeout=10,
+                env=clean_external_environment(),
             )
             return result.returncode == 0 and bool(result.stdout.strip())
         except Exception:

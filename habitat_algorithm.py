@@ -1,6 +1,6 @@
-import os
 import subprocess
 from pathlib import Path
+from .external_environment import clean_external_environment
 
 import processing
 
@@ -25,7 +25,9 @@ from qgis.core import (
     QgsRasterLayer,
 )
 
-
+clean_env = clean_external_environment(
+    python_exe
+)
 # ------------------------------------------------------------
 # OUTPUT STYLING
 # ------------------------------------------------------------
@@ -391,9 +393,12 @@ class HabitatPredictionAlgorithm(QgsProcessingAlgorithm):
                 f"Configured Python executable does not exist:\n{python_exe}"
             )
 
-        clean_env = os.environ.copy()
-        clean_env.pop("PYTHONHOME", None)
-        clean_env.pop("PYTHONPATH", None)
+        # Build the same isolated external-Python environment used by
+        # the automatic setup dialog. This prevents QGIS / OSGeo4W DLLs
+        # from interfering with PyTorch and the external geospatial stack.
+        clean_env = clean_external_environment(
+            python_exe
+        )
 
         inference_script = plugin_dir / "inference_runner.py"
         sentinel_preprocess_script = plugin_dir / "sentinel_preprocess.py"
@@ -1005,4 +1010,3 @@ class HabitatProcessingProvider(QgsProcessingProvider):
 
     def icon(self):
         icon_path = Path(__file__).resolve().parent / "icon.png"
-        return QIcon(str(icon_path))
