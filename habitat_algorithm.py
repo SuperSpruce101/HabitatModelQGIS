@@ -25,9 +25,6 @@ from qgis.core import (
     QgsRasterLayer,
 )
 
-clean_env = clean_external_environment(
-    python_exe
-)
 # ------------------------------------------------------------
 # OUTPUT STYLING
 # ------------------------------------------------------------
@@ -1010,3 +1007,4 @@ class HabitatProcessingProvider(QgsProcessingProvider):
 
     def icon(self):
         icon_path = Path(__file__).resolve().parent / "icon.png"
+        return QIcon(str(icon_path))
